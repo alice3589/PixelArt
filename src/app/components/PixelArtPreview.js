@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import GIF from 'gif.js';
+import { parseGIF, decompressFrames } from 'gifuct-js';
 
 // ピクセル化処理の関数をコンポーネントの外に定義
 function pixelateImage(imageData, pixelSize, colorCount) {
@@ -59,6 +60,7 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processingStep, setProcessingStep] = useState('');
+  const [pixelatedGifUrl, setPixelatedGifUrl] = useState(null);
 
   useEffect(() => {
     if (!image) return;
@@ -116,7 +118,10 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
           workers: 2,
           quality: 10,
           width: originalCanvasRef.current.width,
-          height: originalCanvasRef.current.height
+          height: originalCanvasRef.current.height,
+          repeat: 0, // 無限ループ
+          dither: false, // ディザリングを無効化
+          debug: true, // デバッグ情報を有効化
         });
 
         // GIFの各フレームを処理
@@ -126,7 +131,10 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
         for (let i = 0; i < frames.length; i++) {
           const frameData = frames[i];
           const pixelatedData = pixelateImage(frameData, pixelSize, colorCount);
-          gif.addFrame(pixelatedData);
+          gif.addFrame(pixelatedData, {
+            delay: frames[i].delay * 10, // 10ms単位
+            copy: true
+          });
           
           // 進捗状況を更新
           const newProgress = Math.round((i + 1) / totalFrames * 100);
@@ -135,7 +143,16 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
         }
 
         setProcessingStep('GIFを生成中...');
+        
+        gif.on('progress', (p) => {
+          setProgress(Math.round(p * 100));
+        });
+
         gif.on('finished', (blob) => {
+          const url = URL.createObjectURL(blob);
+          setPixelatedGifUrl(url);
+          
+          // ピクセル化されたGIFを表示
           const pixelatedCtx = pixelatedCanvasRef.current.getContext('2d');
           const img = new Image();
           img.onload = () => {
@@ -144,7 +161,7 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
             setProgress(0);
             setProcessingStep('');
           };
-          img.src = URL.createObjectURL(blob);
+          img.src = url;
         });
 
         gif.render();
@@ -158,6 +175,15 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
       setProcessingStep('');
     }
   };
+
+  // コンポーネントのクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (pixelatedGifUrl) {
+        URL.revokeObjectURL(pixelatedGifUrl);
+      }
+    };
+  }, [pixelatedGifUrl]);
 
   return (
     <div className="flex items-center justify-center gap-4">
@@ -208,22 +234,20 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
 
 // GIFフレーム抽出用の関数を修正
 async function extractGifFrames(arrayBuffer) {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.src = URL.createObjectURL(new Blob([arrayBuffer]));
-    
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      
-      // 画像を描画
-      ctx.drawImage(image, 0, 0);
-      
-      // ImageDataを取得
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      resolve([imageData]);
-    };
-  });
+  const gif = parseGIF(arrayBuffer);
+  const frames = decompressFrames(gif, true); // 全フレームを取得
+  // 各フレームのImageDataをcanvasで生成
+  const imageDatas = [];
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = gif.lsd.width;
+  canvas.height = gif.lsd.height;
+
+  for (const frame of frames) {
+    // RGBA配列をImageDataに変換
+    const imageData = ctx.createImageData(canvas.width, canvas.height);
+    imageData.data.set(frame.patch);
+    imageDatas.push(imageData);
+  }
+  return imageDatas;
 }
