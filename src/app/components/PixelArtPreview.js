@@ -185,6 +185,24 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
     };
   }, [pixelatedGifUrl]);
 
+  const handleDownload = () => {
+    if (pixelatedGifUrl) {
+      // GIFの場合
+      const link = document.createElement('a');
+      link.href = pixelatedGifUrl;
+      link.download = 'pixelart.gif';
+      link.click();
+    } else {
+      // PNGの場合
+      const canvas = pixelatedCanvasRef.current;
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = 'pixelart.png';
+      link.click();
+    }
+  };
+
   return (
     <div className="flex items-center justify-center gap-4">
       <div className="flex-1">
@@ -227,6 +245,12 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
             </div>
           )}
         </div>
+        <button
+          onClick={handleDownload}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+        >
+          ダウンロード
+        </button>
       </div>
     </div>
   );
