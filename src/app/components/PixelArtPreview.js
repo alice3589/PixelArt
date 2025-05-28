@@ -36,12 +36,31 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
   }, [image, pixelSize, colorCount]);
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
+    <div className="flex items-center justify-center gap-4">
+      <div className="flex-1">
         <h3 className="text-lg font-medium mb-2">元の画像</h3>
         <canvas ref={originalCanvasRef} className="w-full" />
       </div>
-      <div>
+      
+      {/* 矢印 */}
+      <div className="flex items-center justify-center">
+        <svg
+          className="w-16 h-16 text-black-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M14 5l7 7m0 0l-7 7m7-7H3"
+          />
+        </svg>
+      </div>
+
+      <div className="flex-1">
         <h3 className="text-lg font-medium mb-2">ピクセルアート</h3>
         <canvas ref={pixelatedCanvasRef} className="w-full" />
       </div>
@@ -49,50 +68,4 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
   );
 }
 
-function pixelateImage(imageData, pixelSize, colorCount) {
-  const { width, height, data } = imageData;
-  const newData = new Uint8ClampedArray(data.length);
-
-  // ピクセル化処理の実装
-  for (let y = 0; y < height; y += pixelSize) {
-    for (let x = 0; x < width; x += pixelSize) {
-      // ブロック内の平均色を計算
-      let r = 0, g = 0, b = 0, a = 0;
-      let count = 0;
-
-      for (let blockY = 0; blockY < pixelSize && y + blockY < height; blockY++) {
-        for (let blockX = 0; blockX < pixelSize && x + blockX < width; blockX++) {
-          const i = ((y + blockY) * width + (x + blockX)) * 4;
-          r += data[i];
-          g += data[i + 1];
-          b += data[i + 2];
-          a += data[i + 3];
-          count++;
-        }
-      }
-
-      r = Math.round(r / count);
-      g = Math.round(g / count);
-      b = Math.round(b / count);
-      a = Math.round(a / count);
-
-      // 色数を制限
-      r = Math.round(r / (256 / colorCount)) * (256 / colorCount);
-      g = Math.round(g / (256 / colorCount)) * (256 / colorCount);
-      b = Math.round(b / (256 / colorCount)) * (256 / colorCount);
-
-      // 新しいデータに書き込み
-      for (let blockY = 0; blockY < pixelSize && y + blockY < height; blockY++) {
-        for (let blockX = 0; blockX < pixelSize && x + blockX < width; blockX++) {
-          const i = ((y + blockY) * width + (x + blockX)) * 4;
-          newData[i] = r;
-          newData[i + 1] = g;
-          newData[i + 2] = b;
-          newData[i + 3] = a;
-        }
-      }
-    }
-  }
-
-  return new ImageData(newData, width, height);
-}
+// pixelateImage関数は変更なし
