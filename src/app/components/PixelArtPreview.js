@@ -5,9 +5,19 @@ import GIF from 'gif.js';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 
 // ピクセル化処理の関数をコンポーネントの外に定義
-function pixelateImage(imageData, pixelSize, colorCount) {
+function pixelateImage(imageData, pixelSize, colorCount, saturation = 1) {
   const { width, height, data } = imageData;
   const newData = new Uint8ClampedArray(data.length);
+
+  // 彩度調整用の関数
+  const adjustSaturation = (r, g, b, saturation) => {
+    const gray = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+    return {
+      r: gray + (r - gray) * saturation,
+      g: gray + (g - gray) * saturation,
+      b: gray + (b - gray) * saturation
+    };
+  };
 
   // ピクセル化処理の実装
   for (let y = 0; y < height; y += pixelSize) {
@@ -32,6 +42,12 @@ function pixelateImage(imageData, pixelSize, colorCount) {
       b = Math.round(b / count);
       a = Math.round(a / count);
 
+      // 彩度調整
+      const adjusted = adjustSaturation(r, g, b, saturation);
+      r = Math.max(0, Math.min(255, Math.round(adjusted.r)));
+      g = Math.max(0, Math.min(255, Math.round(adjusted.g)));
+      b = Math.max(0, Math.min(255, Math.round(adjusted.b)));
+
       // 色数を制限
       r = Math.round(r / (256 / colorCount)) * (256 / colorCount);
       g = Math.round(g / (256 / colorCount)) * (256 / colorCount);
@@ -53,7 +69,7 @@ function pixelateImage(imageData, pixelSize, colorCount) {
   return new ImageData(newData, width, height);
 }
 
-export default function PixelArtPreview({ image, pixelSize, colorCount }) {
+export default function PixelArtPreview({ image, pixelSize, colorCount, saturation }) {
   const originalCanvasRef = useRef(null);
   const pixelatedCanvasRef = useRef(null);
   const [isGif, setIsGif] = useState(false);
@@ -85,13 +101,13 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
       setIsGif(isGifImage);
 
       if (isGifImage) {
-        processGif(image, pixelSize, colorCount);
+        processGif(image, pixelSize, colorCount, saturation);
       } else {
         setProcessingStep('画像を処理中...');
         setIsProcessing(true);
         // 通常の画像処理
         const imageData = originalCtx.getImageData(0, 0, img.width, img.height);
-        const pixelatedData = pixelateImage(imageData, pixelSize, colorCount);
+        const pixelatedData = pixelateImage(imageData, pixelSize, colorCount, saturation);
         const pixelatedCtx = pixelatedCanvas.getContext('2d');
         pixelatedCtx.putImageData(pixelatedData, 0, 0);
         setIsProcessing(false);
@@ -99,9 +115,9 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
       }
     };
     img.src = image;
-  }, [image, pixelSize, colorCount]);
+  }, [image, pixelSize, colorCount, saturation]);
 
-  const processGif = async (gifUrl, pixelSize, colorCount) => {
+  const processGif = async (gifUrl, pixelSize, colorCount, saturation) => {
     setIsProcessing(true);
     setProgress(0);
     setProcessingStep('GIFを読み込み中...');
@@ -130,7 +146,7 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
         
         for (let i = 0; i < frames.length; i++) {
           const frameData = frames[i].imageData;
-          const pixelatedData = pixelateImage(frameData, pixelSize, colorCount);
+          const pixelatedData = pixelateImage(frameData, pixelSize, colorCount, saturation);
 
           // 一時canvasに描画
           const tempCanvas = document.createElement('canvas');
@@ -230,7 +246,6 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
       <div className="flex-1">
         <h3 className="text-lg font-medium mb-2">ピクセルアート</h3>
         <div className="relative">
-          {/* 静止画の場合はcanvas、GIFの場合はimg */}
           {isGif && pixelatedGifUrl ? (
             <img src={pixelatedGifUrl} alt="ピクセルアートGIF" className="w-full" />
           ) : (

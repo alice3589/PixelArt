@@ -9,6 +9,7 @@ export default function Home() {
   const [image, setImage] = useState(null);
   const [pixelSize, setPixelSize] = useState(10);
   const [colorCount, setColorCount] = useState(32);
+  const [saturation, setSaturation] = useState(1);
 
   return (
     <main className="min-h-screen p-8">
@@ -24,14 +25,17 @@ export default function Home() {
             <Controls
               pixelSize={pixelSize}
               colorCount={colorCount}
+              saturation={saturation}
               onPixelSizeChange={setPixelSize}
               onColorCountChange={setColorCount}
+              onSaturationChange={setSaturation}
             />
             
             <PixelArtPreview
               image={image}
               pixelSize={pixelSize}
               colorCount={colorCount}
+              saturation={saturation}
             />
           </>
         )}
