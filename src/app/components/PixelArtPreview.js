@@ -129,17 +129,26 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
         const totalFrames = frames.length;
         
         for (let i = 0; i < frames.length; i++) {
-          const frameData = frames[i];
+          const frameData = frames[i].imageData;
           const pixelatedData = pixelateImage(frameData, pixelSize, colorCount);
-          gif.addFrame(pixelatedData, {
+
+          // 一時canvasに描画
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = pixelatedData.width;
+          tempCanvas.height = pixelatedData.height;
+          const tempCtx = tempCanvas.getContext('2d');
+          tempCtx.putImageData(pixelatedData, 0, 0);
+
+          gif.addFrame(tempCtx, {
             delay: frames[i].delay * 10, // 10ms単位
             copy: true
           });
-          
           // 進捗状況を更新
           const newProgress = Math.round((i + 1) / totalFrames * 100);
           setProgress(newProgress);
           setProcessingStep(`フレーム ${i + 1}/${totalFrames} を処理中...`);
+          // UI更新を促す
+          await new Promise(r => setTimeout(r, 0));
         }
 
         setProcessingStep('GIFを生成中...');
@@ -151,17 +160,7 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
         gif.on('finished', (blob) => {
           const url = URL.createObjectURL(blob);
           setPixelatedGifUrl(url);
-          
-          // ピクセル化されたGIFを表示
-          const pixelatedCtx = pixelatedCanvasRef.current.getContext('2d');
-          const img = new Image();
-          img.onload = () => {
-            pixelatedCtx.drawImage(img, 0, 0);
-            setIsProcessing(false);
-            setProgress(0);
-            setProcessingStep('');
-          };
-          img.src = url;
+          setIsProcessing(false);
         });
 
         gif.render();
@@ -231,7 +230,12 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
       <div className="flex-1">
         <h3 className="text-lg font-medium mb-2">ピクセルアート</h3>
         <div className="relative">
-          <canvas ref={pixelatedCanvasRef} className="w-full" />
+          {/* 静止画の場合はcanvas、GIFの場合はimg */}
+          {isGif && pixelatedGifUrl ? (
+            <img src={pixelatedGifUrl} alt="ピクセルアートGIF" className="w-full" />
+          ) : (
+            <canvas ref={pixelatedCanvasRef} className="w-full" />
+          )}
           {isProcessing && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50">
               <div className="text-white mb-2">{processingStep}</div>
@@ -260,8 +264,8 @@ export default function PixelArtPreview({ image, pixelSize, colorCount }) {
 async function extractGifFrames(arrayBuffer) {
   const gif = parseGIF(arrayBuffer);
   const frames = decompressFrames(gif, true); // 全フレームを取得
-  // 各フレームのImageDataをcanvasで生成
-  const imageDatas = [];
+  // 各フレームのImageDataとdelayをcanvasで生成
+  const result = [];
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   canvas.width = gif.lsd.width;
@@ -271,7 +275,7 @@ async function extractGifFrames(arrayBuffer) {
     // RGBA配列をImageDataに変換
     const imageData = ctx.createImageData(canvas.width, canvas.height);
     imageData.data.set(frame.patch);
-    imageDatas.push(imageData);
+    result.push({ imageData, delay: frame.delay });
   }
-  return imageDatas;
+  return result;
 }
